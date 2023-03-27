@@ -1,0 +1,64 @@
+new interpret in {
+
+    for( (space, atom, expected_type, bindings, step_result, ack) <- interpret ) {
+        match step_result {
+
+            StepResult::Return => ack!(space, atom, expected_type, bindings)
+            StepResult::Error => ack!(???) # how to encode error
+
+            StepResult::Execute => match (atom, expected_type) {
+                (_, ATOM_TYPE_ATOM) =>
+                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
+                (Atom::Symbol(_), ATOM_TYPE_SYMBOL) =>
+                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
+                (Atom::Expression(_), ATOM_TYPE_EXPRESSION) =>
+                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
+                (Atom::Grounded(_), ATOM_TYPE_GROUNDED) =>
+                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
+                (Atom::Variable(_), _) =>
+                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
+
+                (Atom::Symbol(_) \/ Atom::Grounded(_) \/ Atom::Expression([]), _) =>
+                    cast_atom_to_type!(space, atom, expected_type, bindings, StepResult::Execute, ack)
+
+                (Atom::Expression([op ...args]), _) => {
+                    new ack_type {
+                        get_type_of_atom!(space, op, ack_type)
+                        | for( op_type <- ack_type ) {
+                            interpret_expr_as_type!(space, atom, op_type, expected_type, ack)
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+
+    new get_type_of_atom in {
+        for( (space, atom, ack) <- get_type_of_atom ) {
+            // sync get types from space and send them to ack
+        }
+    }
+
+    new get_type_bindings in {
+        for( (space, atom, bindings, type, ack, nack) <- get_type_bindings ) {
+            // sync find bindings for the atom type in space and return to ack
+            // return error in nack if bindings are not found
+        }
+    }
+
+    new cast_atom_to_type in {
+        for( (space, atom, type, bindings, StepResult::Execute, ack) <- cast_atom_to_type ) {
+            new ack_bindings, nack_bindings {
+                get_type_bindings!(space, atom, bindings, type, ack_bindings, nack_bindings)
+                | for( bindings <- ack_bindings ) {
+                    interpret!(space, atom, type, bindings, StepResult::Return, ack)
+                }
+                | for( error <- nack_bindings ) {
+                    interpret!(space, atom, type, bindings, StepResult::Error, ack)
+                }
+        }
+    }
+
+    
+}
