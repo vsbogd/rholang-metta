@@ -1,36 +1,24 @@
 new interpret in {
 
-    for( (space, atom, expected_type, bindings, step_result, ack) <- interpret ) {
-        match step_result {
+    for( (space, atom, expected_type, bindings, ack, nack) <- interpret ) {
+        match (atom, expected_type) {
+            (_, ATOM_TYPE_ATOM) => ack!(atom, expected_type, bindings)
+            (Atom::Symbol(_), ATOM_TYPE_SYMBOL) => ack!(atom, expected_type, bindings)
+            (Atom::Expression(_), ATOM_TYPE_EXPRESSION) => ack!(atom, expected_type, bindings)
+            (Atom::Grounded(_), ATOM_TYPE_GROUNDED) => ack!(atom, expected_type, bindings)
+            (Atom::Variable(_), _) => ack!(atom, expected_type, bindings)
 
-            StepResult::Return => ack!(space, atom, expected_type, bindings)
-            StepResult::Error => ack!(???) # how to encode error
+            (Atom::Symbol(_) \/ Atom::Grounded(_) \/ Atom::Expression([]), _) =>
+                cast_atom_to_type!(space, atom, expected_type, bindings, ack, nack)
 
-            StepResult::Execute => match (atom, expected_type) {
-                (_, ATOM_TYPE_ATOM) =>
-                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
-                (Atom::Symbol(_), ATOM_TYPE_SYMBOL) =>
-                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
-                (Atom::Expression(_), ATOM_TYPE_EXPRESSION) =>
-                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
-                (Atom::Grounded(_), ATOM_TYPE_GROUNDED) =>
-                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
-                (Atom::Variable(_), _) =>
-                    interpret!(space, atom, expected_type, bindings, StepResult::Return, ack)
-
-                (Atom::Symbol(_) \/ Atom::Grounded(_) \/ Atom::Expression([]), _) =>
-                    cast_atom_to_type!(space, atom, expected_type, bindings, StepResult::Execute, ack)
-
-                (Atom::Expression([op ...args]), _) => {
-                    new ack_type {
-                        get_type_of_atom!(space, op, ack_type)
-                        | for( op_type <- ack_type ) {
-                            interpret_expr_as_type!(space, atom, op_type, expected_type, ack)
-                        }
+            (Atom::Expression([op ...args]), _) => {
+                new type_ack {
+                    get_type_of_atom!(space, op, type_ack)
+                    | for( op_type <- type_ack ) {
+                        interpret_expr_as_type!(space, atom, op_type, expected_type, ack, nack)
                     }
                 }
             }
-
         }
     }
 
@@ -48,14 +36,14 @@ new interpret in {
     }
 
     new cast_atom_to_type in {
-        for( (space, atom, type, bindings, StepResult::Execute, ack) <- cast_atom_to_type ) {
-            new ack_bindings, nack_bindings {
-                get_type_bindings!(space, atom, bindings, type, ack_bindings, nack_bindings)
-                | for( bindings <- ack_bindings ) {
-                    interpret!(space, atom, type, bindings, StepResult::Return, ack)
+        for( (space, atom, type, bindings, ack, nack) <- cast_atom_to_type ) {
+            new bindings_ack, bindings_nack {
+                get_type_bindings!(space, atom, bindings, type, bindings_ack, bindings_nack)
+                | for( bindings <- bindings_ack ) {
+                    ack!(atom, type, bindings)
                 }
-                | for( error <- nack_bindings ) {
-                    interpret!(space, atom, type, bindings, StepResult::Error, ack)
+                | for( error <- bindings_nack ) {
+                    nack!(atom, type, bindings, error)
                 }
         }
     }
