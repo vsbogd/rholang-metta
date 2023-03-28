@@ -1,6 +1,6 @@
 new interpret in {
 
-    for( (space, atom, expected_type, bindings, ack, nack) <- interpret ) {
+    for( (@space, @atom, @expected_type, @bindings, ack, nack) <= interpret ) {
         match (atom, expected_type) {
             (_, ATOM_TYPE_ATOM) => ack!(atom, expected_type, bindings)
             (Atom::Symbol(_), ATOM_TYPE_SYMBOL) => ack!(atom, expected_type, bindings)
@@ -9,13 +9,13 @@ new interpret in {
             (Atom::Variable(_), _) => ack!(atom, expected_type, bindings)
 
             (Atom::Symbol(_) \/ Atom::Grounded(_) \/ Atom::Expression([]), _) =>
-                cast_atom_to_type!(space, atom, expected_type, bindings, ack, nack)
+                cast_atom_to_type!(space, atom, expected_type, bindings, *ack, *nack)
 
             (Atom::Expression([op ...args]), _) => {
                 new type_ack {
-                    get_type_of_atom!(space, op, type_ack)
-                    | for( op_type <- type_ack ) {
-                        interpret_expr_as_type!(space, atom, op_type, expected_type, ack, nack)
+                    get_type_of_atom!(space, op, *type_ack)
+                    | for( @op_type <= type_ack ) {
+                        interpret_expr_as_type!(space, atom, op_type, expected_type, *ack, *nack)
                     }
                 }
             }
@@ -23,26 +23,26 @@ new interpret in {
     }
 
     new get_type_of_atom in {
-        for( (space, atom, ack) <- get_type_of_atom ) {
+        for( (@space, @atom, ack) <= get_type_of_atom ) {
             // sync get types from space and send them to ack
         }
     }
 
     new get_type_bindings in {
-        for( (space, atom, bindings, type, ack, nack) <- get_type_bindings ) {
+        for( (@space, @atom, @bindings, @type, ack, nack) <= get_type_bindings ) {
             // sync find bindings for the atom type in space and return to ack
             // return error in nack if bindings are not found
         }
     }
 
     new cast_atom_to_type in {
-        for( (space, atom, type, bindings, ack, nack) <- cast_atom_to_type ) {
+        for( (@space, @atom, @type, @bindings, ack, nack) <= cast_atom_to_type ) {
             new bindings_ack, bindings_nack {
-                get_type_bindings!(space, atom, bindings, type, bindings_ack, bindings_nack)
-                | for( bindings <- bindings_ack ) {
+                get_type_bindings!(space, atom, bindings, type, *bindings_ack, *bindings_nack)
+                | for( @bindings <= bindings_ack ) {
                     ack!(atom, type, bindings)
                 }
-                | for( error <- bindings_nack ) {
+                | for( @error <- bindings_nack ) {
                     nack!(atom, type, bindings, error)
                 }
         }
